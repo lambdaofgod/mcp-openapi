@@ -1,3 +1,4 @@
+import re
 from http import HTTPMethod
 from typing import Annotated, Any
 from mcp.server.fastmcp.server import FastMCP, Settings as FastMCPSettings
@@ -178,21 +179,30 @@ def tool_params_from_operation(op: openapi_spec.Operation) -> FuncMetadata:
     )
 
 
+def get_clean_tool_name(path, op):
+
+    tool_name = f"{op.method.value.upper()}{path.url}".replace("/", "_").replace(
+        r"\{.*\}", ""
+    )
+
+    return re.sub(r"\{.*\}", "", tool_name).strip("_")
+
+
 def tool_from_path(
     api_client: APIClient, path: openapi_spec.Path, op: openapi_spec.Operation
 ) -> Tool:
     """Convert a path operation to a tool"""
 
+    tool_name = get_clean_tool_name(path, op)
+
     async def fn(*args, **kwargs) -> str:
         """The function that will be called when the tool is invoked"""
-        assert op.operation_id is not None
-        return await api_client.call(op.operation_id, *args, **kwargs)
+        assert tool_name is not None
+        return await api_client.call(tool_name, *args, **kwargs)
 
     # Register the operation with the API client, so it can match up parameters to path/query/body parameters
     assert op.operation_id is not None
-    api_client.add_request(
-        op.operation_id, HTTPMethod(op.method.value.upper()), path.url, op
-    )
+    api_client.add_request(tool_name, HTTPMethod(op.method.value.upper()), path.url, op)
 
     # Create the tool metadata
     fn_metadata = tool_params_from_operation(op)
@@ -201,7 +211,7 @@ def tool_from_path(
     return Tool(
         fn=fn,
         fn_metadata=fn_metadata,
-        name=op.operation_id,
+        name=tool_name,
         description=" - ".join(filter(None, [op.summary, op.description])),
         parameters=fn_metadata.arg_model.model_json_schema(),
         is_async=True,
