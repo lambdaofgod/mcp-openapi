@@ -60,7 +60,7 @@ class ServerFactory:
         # TODO: Filter by operation_id matches
         # TODO: Filter by HTTP method
         # TODO: Restrict to specified subset of paths
-        mcp = FastMCP()
+        mcp = FastMCP(fastmcp_settings=self.fastmcp_settings)
         for path in spec.paths:
             for op in path.operations:
                 tool = tool_from_path(api_client, path, op)
